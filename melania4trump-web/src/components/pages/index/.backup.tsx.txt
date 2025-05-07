@@ -1,0 +1,147 @@
+import { useEffect, useState } from 'react';
+import { useAccount, useBalance, useSendTransaction } from 'wagmi';
+import { ethers } from 'ethers';  // Import ethers for working directly with Ethereum provider
+import toast from 'react-hot-toast';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import Image from "next/image";
+import { parseUnits } from 'viem';
+import { mainnet, base } from 'viem/chains';
+
+
+const BuyMeCoffee = () => {
+	const coffees = [
+	  { value: "0.5", heading: "Tier 1", text: "Get exclusive whitelist for NFTs", scale: 1 },
+	  { value: "1.5", heading: "Tier 2", text: "(10 seats) Receive trading dividends FOREVER", scale: 4 },
+	  { value: "3", heading: "Tier 3", text: "(5 seats) Receive 2x trading dividends FOREVER", scale: 6 },
+	];
+	const { address, isConnected } = useAccount();
+	const [selectedCoffee, setSelectedCoffee] = useState(coffees[0]);
+	const [selectedChainId, setSelectedChainId] = useState(mainnet.id);  // Default to mainnet ID
+	const { data, isLoading } = useBalance({
+	  addressOrName: address,
+	  chainId: selectedChainId,
+	});
+	const { sendTransaction, isPending } = useSendTransaction();
+  
+	useEffect(() => {
+	  const fetchChainId = async () => {
+		if (window.ethereum) {
+		  const provider = new ethers.providers.Web3Provider(window.ethereum);
+		  try {
+			const network = await provider.getNetwork();
+			setSelectedChainId(network.chainId);
+		  } catch (error) {
+			toast.error("Error fetching network information.");
+		  }
+		}
+	  };
+  
+	  fetchChainId();
+	}, []);
+  
+	const payForCoffeeHandler = async () => {
+	  if (!address || !isConnected) {
+		toast.error("Sorry, you should connect to your wallet first");
+		return;
+	  }
+  
+	  const value = parseUnits(selectedCoffee.value, mainnet.nativeCurrency.decimals);
+	  if (data?.value && value.gt(data.value)) {
+		toast.error("Sorry, you don't have enough ETH to pay for this");
+		return;
+	  }
+  
+	  await sendTransaction({
+		request: {
+		  to: process.env.NEXT_PUBLIC_MY_ACCOUNT,
+		  from: address,
+		  value: value.toHexString(),
+		  chainId: selectedChainId,
+		}
+	  }).catch(error => {
+		toast.error(error.message || "Transaction failed");
+	  });
+	};
+
+  return (
+    <Card className="bg-gray-700 bg-opacity-10 backdrop-blur">
+      <CardHeader className="border-b p-4">
+        <div className="mt-4 flex justify-center mb-8">
+          <Image
+            src={"/assets/images/EU-mel.webp"}
+            className="rounded-full"
+            width={300}
+            height={300}
+            alt="Melania 4 Trump"
+          />
+        </div>
+        <CardTitle className="flex items-center gap-2 pl-4 text-xl md:text-2xl">
+          <span>Exclusive $MELANIA Presale!</span>
+        </CardTitle>
+        <CardContent>
+          <div className="pt-2">
+            <div className="-ml-1 font-bold">Select a tier:</div>
+            <div className="flex pt-4 md:flex items-center justify-center w-auto">
+              {coffees.map((item) => {
+                const { scale, value } = item;
+                const isActive = value === selectedCoffee.value;
+                return (
+                  <div
+                    key={value}
+                    className="relative"
+                    onClick={() => setSelectedCoffee(item)}
+                  >
+                    {isActive && (
+                      <div className="w-full scale-110 rounded-xl h-full absolute gradient-animation z-0"></div>
+                    )}
+                    <div
+                      className={cn(
+                        "flex bg-gray-900 rounded-xl p-4 relative z-20 flex-col justify-center items-center w-fit cursor-pointer",
+                        !isActive && "bg-transparent"
+                      )}
+                    >
+                      <Image
+                        src={"/assets/images/tiny-no-bg.webp"}
+                        alt="melania"
+                        width={50 * scale}
+                        height={100 * scale}
+                      />
+                      <span className="w-full text-nowrap flex text-left welcomeText2 !text-xl mt-4">
+                        {item.heading}
+                        <br></br>
+                      </span>
+                      <span className="welcomeText3 !text-lg text-nowrap lg:!text-xl">
+                        {value} ETH
+                      </span>
+                      <span className="text-sm flex-row">
+                        <span className="p-2 block text-center prose-sm ">
+                          {item.text}
+                          <br></br>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-center pt-16 md:pt-8">
+              <Button
+                disabled={isLoading || isPending}
+                isLoading={isLoading || isPending}
+                variant="glass"
+                className="text-xl md:text-xl p-5 flex bg-green-500 border border-green-400"
+                onClick={payForCoffeeHandler}
+              >
+                {isLoading ? "Fetching your balance..." : "Purchase Tier"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </CardHeader>
+    </Card>
+  );
+};
+
+export default BuyMeCoffee;
